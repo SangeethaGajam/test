@@ -1,12 +1,20 @@
 name: Deploy Infrastructure with Terraform
 
+# on:
+#   push:
+#     branches:
+#       - main  # Trigger on pushes to the main branch
+#   pull_request:
+#     branches:
+#       - main  # Trigger on pull requests to the main branch
+
 on:
-  push:
-    branches:
-      - main  # Trigger on pushes to the main branch
-  pull_request:
-    branches:
-      - main  # Trigger on pull requests to the main branch
+  workflow_dispatch: # Allows manual trigger
+    inputs:
+      action: # Define an input to choose between "apply" and "destroy"
+        description: "Choose action: apply or destroy"
+        required: true
+        default: "apply" # Default is "apply"
 
 jobs:
   terraform:
@@ -35,11 +43,26 @@ jobs:
     - name: Initialize Terraform
       run: terraform init
 
+    # # Step 5: Terraform Plan
+    # - name: Terraform Plan
+    #   run: terraform plan -out=tfplan
+
     # Step 5: Terraform Plan
     - name: Terraform Plan
-      run: terraform plan -out=tfplan
+      if: github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy'
+      run: |
+        if [[ "${{ github.event.inputs.action }}" == "apply" ]]; then
+          terraform plan -out=tfplan
+        elif [[ "${{ github.event.inputs.action }}" == "destroy" ]]; then
+          terraform plan -destroy -out=tfplan
+        fi
 
     # Step 6: Terraform Apply
     - name: Terraform Apply
       if: github.event_name == 'push'  # Only apply on pushes, not pull requests
+      run: terraform apply -auto-approve tfplan
+
+    # Step 7: Terraform Destroy
+    - name: Terraform Destroy
+      if: github.event.inputs.action == 'destroy'
       run: terraform apply -auto-approve tfplan
